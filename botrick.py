@@ -1,59 +1,63 @@
+from pprint import pprint
+from pymongo import MongoClient
 import random
-import re
 
 
 class Markov(object):
         
     def __init__(self, open_file):
-        self.cache = {}
         self.open_file = open_file
-        self.words = self.file_to_words()
-        self.word_size = len(self.words)
-        self.database()
+        self.collection = self.setup_db()
 
-    def file_to_words(self):
-        self.open_file.seek(0)
-        data = self.open_file.read()
-        words = data.split()
-        return words
-
-    def triples(self):
-        """ Generates triples from the given data string. So if our string were
-        "What a lovely day", we'd generate (What, a, lovely) and then
-        (a, lovely, day).
-        """
-                                                                
-        if len(self.words) < 3:
-            return
-        
-        for i in range(len(self.words) - 2):
-            yield (self.words[i], self.words[i+1], self.words[i+2])
-                                    
-    def database(self):
-        for w1, w2, w3 in self.triples():
-            key = (w1, w2)
-            if key in self.cache:
-                self.cache[key].append(w3)
-            else:
-                self.cache[key] = [w3]
-                                                                                                                
-    def generate_markov_text(self, size=25):
-        seed = random.randint(0, self.word_size-3)
-        seed_word, next_word = self.words[seed], self.words[seed+1]
-        w1, w2 = seed_word, next_word
-        gen_words = []
-        pattern = re.compile("(^\P)+")
-        for i in xrange(size):
-            gen_words.append(w1)
-            w1, w2 = w2, random.choice(self.cache[(w1, w2)])
-            if pattern.match(w1):
+    def add_to_chain(self, text):
+        tokens = text.split()
+        for i, t in enumerate(tokens):
+            try:
+                self.update_db(t, tokens[i+1])
+            except IndexError:
                 break
-        gen_words.append(w2)
-        return ' '.join(gen_words)
 
+    def generate_text(self, length=20):
+        result = []
+        current = self.get_random_record()
+        result.append(current['word'])
+        for x in range(length):
+            current = self.get_random_record(current)
+            if current:
+                result.append(current['word'])
+            else:
+                break
+
+        return ' '.join(result)
+
+    def get_random_record(self, seed=None):
+        if not seed:
+            count = self.collection.count()
+            return self.collection.find()[random.randrange(count)]
+        else:
+            word = random.choice(seed['children'])
+            return self.collection.find_one({'word': word})
+
+    def get_record(self, word):
+        return self.collection.find_one({'word': word})
+
+    def populate_db(self):
+        for line in self.open_file:
+            self.add_to_chain(line.lower())
+
+    def print_chain(self):
+        pprint(dict(self.chain))
+
+    def setup_db(self):
+        client = MongoClient()
+        db = client.botrick
+        return db.markov
+
+    def update_db(self, base, new_word):
+        self.collection.update_one({'word': base}, {'$push': {'children': new_word}}, upsert=True)
 
 if __name__ == '__main__':
     with open('patrick.txt') as f:
         markov = Markov(f)
-        for x in range(10):
-            print markov.generate_markov_text(size=random.randint(1, 25))
+        #markov.populate_db()
+        print markov.generate_text(length=500)
