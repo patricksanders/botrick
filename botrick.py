@@ -1,16 +1,14 @@
-from pprint import pprint
 from pymongo import MongoClient
 import random
 
 
 class Markov(object):
         
-    def __init__(self, open_file):
-        self.open_file = open_file
+    def __init__(self):
         self.collection = self.setup_db()
 
-    def add_to_chain(self, text):
-        tokens = text.split()
+    def add_blob(self, text):
+        tokens = text.lower().split()
         for i, t in enumerate(tokens):
             try:
                 self.update_db(t, tokens[i+1])
@@ -41,13 +39,6 @@ class Markov(object):
     def get_record(self, word):
         return self.collection.find_one({'word': word})
 
-    def populate_db(self):
-        for line in self.open_file:
-            self.add_to_chain(line.lower())
-
-    def print_chain(self):
-        pprint(dict(self.chain))
-
     def setup_db(self):
         client = MongoClient()
         db = client.botrick
@@ -57,7 +48,11 @@ class Markov(object):
         self.collection.update_one({'word': base}, {'$push': {'children': new_word}}, upsert=True)
 
 if __name__ == '__main__':
-    with open('patrick.txt') as f:
-        markov = Markov(f)
-        #markov.populate_db()
-        print markov.generate_text(length=500)
+    markov = Markov()
+
+    #with open('patrick.txt') as f:
+    #    for line in f:
+    #        markov.add_blob(line)
+
+    print markov.generate_text(length=500)
+
