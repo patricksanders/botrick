@@ -76,3 +76,4 @@ class Markov(object):
         :param new_child: string
         """
         self.collection.update_one({'word': word}, {'$push': {'children': new_child}}, upsert=True)
+
